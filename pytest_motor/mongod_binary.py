@@ -14,7 +14,7 @@ import distro
 
 class MongodBinary:
     """This class helps with mongodb binary."""
-    MONGO_VERSION: str = '4.4.6'  # FUTURE: mongod binary version selector via config
+    MONGO_VERSION: str = '6.0.4'  # FUTURE: mongod binary version selector via config
 
     def __init__(self, destination: Path):
         destination.mkdir(parents=True, exist_ok=True)
