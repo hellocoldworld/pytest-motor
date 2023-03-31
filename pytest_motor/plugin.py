@@ -103,7 +103,8 @@ def __motor_client(mongod_socket: str) -> AsyncIterator[AsyncIOMotorClient]:
 
 
 @pytest_asyncio.fixture(scope='function')
-async def motor_client(__motor_client: AsyncIterator[AsyncIOMotorClient]) -> AsyncIterator[AsyncIOMotorClient]:
+async def motor_client(
+        __motor_client: AsyncIterator[AsyncIOMotorClient]) -> AsyncIterator[AsyncIOMotorClient]:
     # pylint: disable=redefined-outer-name
     """Yield a Motor client."""
     yield __motor_client
