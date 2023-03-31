@@ -2,6 +2,11 @@
 
 ## v0.3.1
 
+- Add support for Ubuntu 22.04
+- Make scripts/cpu.sh portable
+
+## v0.3.1
+
 - Reuse mongod session between tests for performance improvements
   - Drops database instead of
 - Generic tmp folder
