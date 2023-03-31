@@ -127,7 +127,7 @@ class MongodBinary:
             return 'ubuntu1804'
         if distro.version() == '20.04':
             return 'ubuntu2004'
-        if distro.version() == '20.04':
+        if distro.version() == '22.04':
             MongodBinary.warn_untested_os()
             return 'ubuntu2204'
 
