@@ -148,6 +148,9 @@ class MongodBinary:
             return 'debian10'
         if distro.version().startswith('11'):
             return 'ubuntu1804'
+        if distro.version().startswith('12'):
+            MongodBinary.warn_untested_os()
+            return 'ubuntu1804'
 
         warnings.warn("Can't detect your Debian version. Fallback to 9.2.")
         return 'debian92'
