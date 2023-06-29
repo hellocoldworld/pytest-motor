@@ -2,8 +2,10 @@
 import asyncio
 import os
 import socket
+import subprocess
 import tempfile
 from pathlib import Path
+from subprocess import PIPE, Popen
 from typing import AsyncIterator, Iterator, List
 
 import pytest
@@ -31,13 +33,13 @@ def _event_loop() -> Iterator[asyncio.AbstractEventLoop]:
 event_loop = pytest.fixture(fixture_function=_event_loop, scope='session', name="event_loop")
 
 
-@pytest_asyncio.fixture(scope='session')
+@pytest.fixture(scope="session")
 async def root_directory(pytestconfig: PytestConfig) -> Path:
     """Return the root path of pytest."""
     return pytestconfig.rootpath
 
 
-@pytest_asyncio.fixture(scope='session')
+@pytest.fixture(scope="session")
 async def mongod_binary(root_directory: Path) -> Path:
     # pylint: disable=redefined-outer-name
     """Return a path to a mongod binary."""
@@ -48,7 +50,7 @@ async def mongod_binary(root_directory: Path) -> Path:
     return binary.path
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def new_port() -> int:
     """Return an unused port for mongod to run on."""
     port: int = 27017
@@ -65,7 +67,7 @@ def database_path() -> Iterator[str]:
         yield tmpdirname
 
 
-@pytest_asyncio.fixture(scope='session')
+@pytest.fixture(scope="session")
 async def mongod_socket(new_port: int, database_path: Path,
                         mongod_binary: Path) -> AsyncIterator[str]:
     # pylint: disable=redefined-outer-name
@@ -83,10 +85,19 @@ async def mongod_socket(new_port: int, database_path: Path,
         arguments.append("rs0")
     # yapf: enable
 
+
     mongod = await asyncio.create_subprocess_exec(*arguments)
+    db_uri = f'localhost:{new_port}'
+    if AS_REPLICA_SET:
+        import pymongo
+
+        conn = pymongo.MongoClient(port=new_port)
+        conn.admin.command({'replSetInitiate': 1})
+        conf = conn.admin.command({'replSetGetConfig': 1})
+        print(conf['config']['members'])        
 
     # mongodb binds to localhost by default
-    yield f'localhost:{new_port}'
+    yield db_uri
 
     try:
         mongod.terminate()
@@ -108,7 +119,7 @@ def __motor_client(mongod_socket: str) -> AsyncIterator[AsyncIOMotorClient]:
     motor_client_.close()
 
 
-@pytest_asyncio.fixture(scope='function')
+@pytest.fixture(scope="session")
 async def motor_client(
         __motor_client: AsyncIterator[AsyncIOMotorClient]) -> AsyncIterator[AsyncIOMotorClient]:
     # pylint: disable=redefined-outer-name
