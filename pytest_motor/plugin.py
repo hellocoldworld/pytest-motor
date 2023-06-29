@@ -109,7 +109,7 @@ async def mongod_socket(new_port: int, database_path: Path,
 def __motor_client(mongod_socket: str) -> AsyncIterator[AsyncIOMotorClient]:
     # pylint: disable=redefined-outer-name
     """Yield a Motor client."""
-    connection_string = f'mongodb://{mongod_socket}'
+    connection_string = f'mongodb://{mongod_socket}/?retryWrites=false'
 
     motor_client_: AsyncIOMotorClient = \
         AsyncIOMotorClient(connection_string, serverSelectionTimeoutMS=3000)
