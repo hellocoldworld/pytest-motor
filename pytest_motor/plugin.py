@@ -1,5 +1,6 @@
 """A pytest plugin which helps test applications using Motor."""
 import asyncio
+import os
 import socket
 import tempfile
 from pathlib import Path
@@ -11,6 +12,8 @@ from _pytest.config import Config as PytestConfig
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from pytest_motor.mongod_binary import MongodBinary
+
+AS_REPLICA_SET = bool(os.environ.get("AS_REPLICA_SET", True))
 
 
 def _event_loop() -> Iterator[asyncio.AbstractEventLoop]:
@@ -75,6 +78,9 @@ async def mongod_socket(new_port: int, database_path: Path,
         '--logpath', '/dev/null',
         '--dbpath', str(database_path)
     ]
+    if AS_REPLICA_SET:
+        arguments.append("--replSet")
+        arguments.append("rs0")
     # yapf: enable
 
     mongod = await asyncio.create_subprocess_exec(*arguments)
