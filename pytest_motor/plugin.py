@@ -8,6 +8,7 @@ from pathlib import Path
 from subprocess import PIPE, Popen
 from typing import AsyncIterator, Iterator, List
 
+import pymongo
 import pytest
 import pytest_asyncio
 from _pytest.config import Config as PytestConfig
@@ -30,7 +31,9 @@ def _event_loop() -> Iterator[asyncio.AbstractEventLoop]:
     loop.close()
 
 
-event_loop = pytest.fixture(fixture_function=_event_loop, scope='session', name="event_loop")
+event_loop = pytest.fixture(
+    fixture_function=_event_loop, scope="session", name="event_loop"
+)
 
 
 @pytest.fixture(scope="session")
@@ -43,7 +46,7 @@ async def root_directory(pytestconfig: PytestConfig) -> Path:
 async def mongod_binary(root_directory: Path) -> Path:
     # pylint: disable=redefined-outer-name
     """Return a path to a mongod binary."""
-    destination: Path = root_directory / '.mongod'
+    destination: Path = root_directory / ".mongod"
     binary = MongodBinary(destination=destination)
     if not binary.exists:
         await binary.download_and_unpack()
@@ -68,8 +71,9 @@ def database_path() -> Iterator[str]:
 
 
 @pytest.fixture(scope="session")
-async def mongod_socket(new_port: int, database_path: Path,
-                        mongod_binary: Path) -> AsyncIterator[str]:
+async def mongod_socket(
+    new_port: int, database_path: Path, mongod_binary: Path
+) -> AsyncIterator[str]:
     # pylint: disable=redefined-outer-name
     """Yield a mongod."""
     # yapf: disable
@@ -80,21 +84,25 @@ async def mongod_socket(new_port: int, database_path: Path,
         '--logpath', '/dev/null',
         '--dbpath', str(database_path)
     ]
-    if AS_REPLICA_SET:
-        arguments.append("--replSet")
-        arguments.append("rs0")
+    arguments.append("--replSet")
+    arguments.append("rs0")
     # yapf: enable
 
-
     mongod = await asyncio.create_subprocess_exec(*arguments)
-    db_uri = f'localhost:{new_port}'
-    if AS_REPLICA_SET:
-        import pymongo
+    db_uri = f"localhost:{new_port}"
 
+    if AS_REPLICA_SET:
         conn = pymongo.MongoClient(port=new_port)
-        conn.admin.command({'replSetInitiate': 1})
-        conf = conn.admin.command({'replSetGetConfig': 1})
-        print(conf['config']['members'])        
+
+        conn.admin.command(
+            {
+                "replSetInitiate": {
+                    "_id": "rs0",
+                    "members": [{"_id": 0, "host": f"localhost:{new_port}"}],
+                }
+            }
+        )
+        conf = conn.admin.command({"replSetGetConfig": 1})
 
     # mongodb binds to localhost by default
     yield db_uri
@@ -109,19 +117,30 @@ async def mongod_socket(new_port: int, database_path: Path,
 def __motor_client(mongod_socket: str) -> AsyncIterator[AsyncIOMotorClient]:
     # pylint: disable=redefined-outer-name
     """Yield a Motor client."""
-    connection_string = f'mongodb://{mongod_socket}/?retryWrites=false'
+    conn = pymongo.MongoClient(host=mongod_socket, replicaSet="rs0")
+    conn.admin.command(
+        {
+            "setDefaultRWConcern": 1,
+            "defaultWriteConcern": {"w": 1, "wtimeout": 2000},
+            "writeConcern": {"w": 0},
+        }
+    )
 
-    motor_client_: AsyncIOMotorClient = \
-        AsyncIOMotorClient(connection_string, serverSelectionTimeoutMS=3000)
+    connection_string = f"mongodb://{mongod_socket}"
+
+    motor_client_: AsyncIOMotorClient = AsyncIOMotorClient(
+        connection_string, serverSelectionTimeoutMS=3000
+    )
 
     yield motor_client_
 
     motor_client_.close()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 async def motor_client(
-        __motor_client: AsyncIterator[AsyncIOMotorClient]) -> AsyncIterator[AsyncIOMotorClient]:
+    __motor_client: AsyncIterator[AsyncIOMotorClient],
+) -> AsyncIterator[AsyncIOMotorClient]:
     # pylint: disable=redefined-outer-name
     """Yield a Motor client."""
     yield __motor_client
@@ -130,4 +149,7 @@ async def motor_client(
 
     for db in dbs:
         if db not in ["config", "admin", "local"]:
-            await __motor_client.drop_database(db)
+            collections = await __motor_client[db].list_collections()
+            for collection in collections:
+                print(collection)
+                await __motor_client[db].drop_collection(collection["name"])
