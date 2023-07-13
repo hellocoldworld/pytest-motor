@@ -31,9 +31,7 @@ def _event_loop() -> Iterator[asyncio.AbstractEventLoop]:
     loop.close()
 
 
-event_loop = pytest.fixture(
-    fixture_function=_event_loop, scope="session", name="event_loop"
-)
+event_loop = pytest.fixture(fixture_function=_event_loop, scope="session", name="event_loop")
 
 
 @pytest.fixture(scope="session")
@@ -71,9 +69,8 @@ def database_path() -> Iterator[str]:
 
 
 @pytest.fixture(scope="session")
-async def mongod_socket(
-    new_port: int, database_path: Path, mongod_binary: Path
-) -> AsyncIterator[str]:
+async def mongod_socket(new_port: int, database_path: Path,
+                        mongod_binary: Path) -> AsyncIterator[str]:
     # pylint: disable=redefined-outer-name
     """Yield a mongod."""
     # yapf: disable
@@ -94,14 +91,15 @@ async def mongod_socket(
     if AS_REPLICA_SET:
         conn = pymongo.MongoClient(port=new_port)
 
-        conn.admin.command(
-            {
-                "replSetInitiate": {
-                    "_id": "rs0",
-                    "members": [{"_id": 0, "host": f"localhost:{new_port}"}],
-                }
+        conn.admin.command({
+            "replSetInitiate": {
+                "_id": "rs0",
+                "members": [{
+                    "_id": 0,
+                    "host": f"localhost:{new_port}"
+                }],
             }
-        )
+        })
         conf = conn.admin.command({"replSetGetConfig": 1})
 
     # mongodb binds to localhost by default
@@ -118,19 +116,22 @@ def __motor_client(mongod_socket: str) -> AsyncIterator[AsyncIOMotorClient]:
     # pylint: disable=redefined-outer-name
     """Yield a Motor client."""
     conn = pymongo.MongoClient(host=mongod_socket, replicaSet="rs0")
-    conn.admin.command(
-        {
-            "setDefaultRWConcern": 1,
-            "defaultWriteConcern": {"w": 1, "wtimeout": 2000},
-            "writeConcern": {"w": 0},
-        }
-    )
+    conn.admin.command({
+        "setDefaultRWConcern": 1,
+        "defaultWriteConcern": {
+            "w": 1,
+            "wtimeout": 2000
+        },
+        "writeConcern": {
+            "w": 0
+        },
+    })
 
     connection_string = f"mongodb://{mongod_socket}"
 
-    motor_client_: AsyncIOMotorClient = AsyncIOMotorClient(
-        connection_string, serverSelectionTimeoutMS=3000
-    )
+    motor_client_: AsyncIOMotorClient = AsyncIOMotorClient(connection_string,
+                                                           serverSelectionTimeoutMS=3000,
+                                                           retryWrites=False)
 
     yield motor_client_
 
@@ -139,8 +140,7 @@ def __motor_client(mongod_socket: str) -> AsyncIterator[AsyncIOMotorClient]:
 
 @pytest.fixture(scope="function")
 async def motor_client(
-    __motor_client: AsyncIterator[AsyncIOMotorClient],
-) -> AsyncIterator[AsyncIOMotorClient]:
+    __motor_client: AsyncIterator[AsyncIOMotorClient], ) -> AsyncIterator[AsyncIOMotorClient]:
     # pylint: disable=redefined-outer-name
     """Yield a Motor client."""
     yield __motor_client

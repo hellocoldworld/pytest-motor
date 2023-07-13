@@ -6,7 +6,9 @@ from unittest.mock import MagicMock, Mock, PropertyMock, patch
 import pytest
 from _pytest.config import Config as PytestConfig
 
-from pytest_motor.plugin import database_path as _database_path, _event_loop, root_directory as _root_directory
+from pytest_motor.plugin import _event_loop
+from pytest_motor.plugin import database_path as _database_path
+from pytest_motor.plugin import root_directory as _root_directory
 
 pytestmark = pytest.mark.unit
 
