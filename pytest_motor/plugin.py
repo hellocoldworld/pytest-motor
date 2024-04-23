@@ -2,10 +2,8 @@
 import asyncio
 import os
 import socket
-import subprocess
 import tempfile
 from pathlib import Path
-from subprocess import PIPE, Popen
 from typing import AsyncIterator, Iterator, List
 
 import pymongo
@@ -19,28 +17,21 @@ from pytest_motor.mongod_binary import MongodBinary
 AS_REPLICA_SET = bool(os.environ.get("AS_REPLICA_SET", True))
 
 
-def _event_loop() -> Iterator[asyncio.AbstractEventLoop]:
-    """Yield an event loop.
-
-    This is necessary because pytest-asyncio needs an event loop with a with an equal or higher
-    pytest fixture scope as any of the async fixtures. And remember, pytest-asynio is what allows us
-    to have async pytest fixtures.
-    """
-    loop = asyncio.get_event_loop()
+@pytest.fixture(scope='function')
+def event_loop() -> asyncio.AbstractEventLoop:
+    """Create an instance of the default event loop for each test case."""
+    loop = asyncio.get_event_loop_policy().get_event_loop()
     yield loop
     loop.close()
 
 
-event_loop = pytest.fixture(fixture_function=_event_loop, scope="session", name="event_loop")
-
-
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 async def root_directory(pytestconfig: PytestConfig) -> Path:
     """Return the root path of pytest."""
     return pytestconfig.rootpath
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 async def mongod_binary(root_directory: Path) -> Path:
     # pylint: disable=redefined-outer-name
     """Return a path to a mongod binary."""
@@ -51,7 +42,7 @@ async def mongod_binary(root_directory: Path) -> Path:
     return binary.path
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def new_port() -> int:
     """Return an unused port for mongod to run on."""
     port: int = 27017
@@ -61,14 +52,14 @@ def new_port() -> int:
     return port
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def database_path() -> Iterator[str]:
     """Yield a database path for a mongod process to store data."""
     with tempfile.TemporaryDirectory() as tmpdirname:
         yield tmpdirname
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 async def mongod_socket(new_port: int, database_path: Path,
                         mongod_binary: Path) -> AsyncIterator[str]:
     # pylint: disable=redefined-outer-name
@@ -89,7 +80,7 @@ async def mongod_socket(new_port: int, database_path: Path,
     db_uri = f"localhost:{new_port}"
 
     if AS_REPLICA_SET:
-        conn = pymongo.MongoClient(port=new_port)
+        conn = pymongo.MongoClient(port=new_port, directConnection=True)
 
         conn.admin.command({
             "replSetInitiate": {
@@ -100,7 +91,7 @@ async def mongod_socket(new_port: int, database_path: Path,
                 }],
             }
         })
-        conf = conn.admin.command({"replSetGetConfig": 1})
+        conn.admin.command({"replSetGetConfig": 1})
 
     # mongodb binds to localhost by default
     yield db_uri
@@ -111,11 +102,11 @@ async def mongod_socket(new_port: int, database_path: Path,
         pass
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def __motor_client(mongod_socket: str) -> AsyncIterator[AsyncIOMotorClient]:
     # pylint: disable=redefined-outer-name
     """Yield a Motor client."""
-    conn = pymongo.MongoClient(host=mongod_socket, replicaSet="rs0")
+    conn = pymongo.MongoClient(host=mongod_socket, replicaSet="rs0", directConnection=True)
     conn.admin.command({
         "setDefaultRWConcern": 1,
         "defaultWriteConcern": {
@@ -140,7 +131,9 @@ def __motor_client(mongod_socket: str) -> AsyncIterator[AsyncIOMotorClient]:
 
 @pytest.fixture(scope="function")
 async def motor_client(
-    __motor_client: AsyncIterator[AsyncIOMotorClient], ) -> AsyncIterator[AsyncIOMotorClient]:
+        __motor_client: AsyncIterator[AsyncIOMotorClient],
+        event_loop: asyncio.AbstractEventLoop,  # pylint: disable=unused-argument
+) -> AsyncIterator[AsyncIOMotorClient]:
     # pylint: disable=redefined-outer-name
     """Yield a Motor client."""
     yield __motor_client

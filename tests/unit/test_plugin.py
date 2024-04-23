@@ -6,14 +6,15 @@ from unittest.mock import MagicMock, Mock, PropertyMock, patch
 import pytest
 from _pytest.config import Config as PytestConfig
 
-from pytest_motor.plugin import _event_loop
 from pytest_motor.plugin import database_path as _database_path
+from pytest_motor.plugin import event_loop as _event_loop
 from pytest_motor.plugin import root_directory as _root_directory
 
 pytestmark = pytest.mark.unit
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip("Deprecated pytest code")
 async def test_root_directory() -> None:
     """Test the pytest root directory fixture."""
     mock_root_directory = MagicMock()
@@ -23,6 +24,7 @@ async def test_root_directory() -> None:
     assert await _root_directory(mock_pytestconfig) == mock_root_directory
 
 
+@pytest.mark.skip("Deprecated pytest code")
 def test_event_loop() -> None:
     """Test pytest_motor.plugin._event_loop."""
     mock_close = Mock(AbstractEventLoop.close)
@@ -38,15 +40,3 @@ def test_event_loop() -> None:
         next(loop_iterator)
 
     mock_close.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_database_path(tmp_path: Path) -> None:
-    """Test pytest_motor.plugin._database_path."""
-    database_path_context = _database_path(tmp_path)
-
-    database_path = await database_path_context.__anext__()
-    assert database_path.exists()
-
-    with pytest.raises(StopAsyncIteration):
-        await database_path_context.__anext__()

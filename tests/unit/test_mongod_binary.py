@@ -21,7 +21,7 @@ def mongodb_archive_windows() -> Iterator[IO]:
     with tempfile.TemporaryDirectory() as tmpdir:
         myfile = Path(tmpdir) / "mongod.zip"
         with ZipFile(file=myfile, mode='w') as archive_zip:
-            archive_zip.writestr("mongodb-win32-x86_64-windows-4.4.6/bin/mongod.exe", 'hello',
+            archive_zip.writestr("mongodb-win32-x86_64-windows-6.0.4/bin/mongod.exe", 'hello',
                                  ZIP_DEFLATED)
         yield myfile.open('rb')
 
@@ -32,7 +32,7 @@ def mongodb_archive_macos() -> Iterator[IO]:
     with tempfile.TemporaryDirectory() as tmpdir:
         myfile = Path(tmpdir) / "mongod.tgz"
         with tarfile.open(myfile, mode="w:gz") as archive_tar:
-            info = tarfile.TarInfo(name="mongodb-macos-x86_64-4.4.6/bin/mongod")
+            info = tarfile.TarInfo(name="mongodb-macos-x86_64-6.0.4/bin/mongod")
             archive_tar.addfile(info, BytesIO(b'hello'))
         yield myfile.open('rb')
 
@@ -68,9 +68,9 @@ def test_mongo_platform(monkeypatch: MonkeyPatch, platform_name: str, distro_nam
 
 # yapf: disable # pylint: disable=line-too-long
 @mark.parametrize('platform_name, distro_name, distro_version, true_url', [
-    ('Darwin', '', '', "https://fastdl.mongodb.org/osx/mongodb-macos-x86_64-4.4.6.tgz"),
-    ('Linux', 'ubuntu', '18.04', "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu1804-4.4.6.tgz"),
-    ('Windows', '', '', "https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-4.4.6.zip")
+    ('Darwin', '', '', "https://fastdl.mongodb.org/osx/mongodb-macos-x86_64-6.0.4.tgz"),
+    ('Linux', 'ubuntu', '18.04', "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu1804-6.0.4.tgz"),
+    ('Windows', '', '', "https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-6.0.4.zip")
 ])
 # yapf: enable # pylint: enable=line-too-long
 def test_mongod_url(monkeypatch: MonkeyPatch, platform_name: str, distro_name: str,
@@ -84,11 +84,8 @@ def test_mongod_url(monkeypatch: MonkeyPatch, platform_name: str, distro_name: s
     assert MongodBinary(Path(tempfile.gettempdir())).url == true_url
 
 
-# yapf: disable # pylint: disable=line-too-long
-@mark.parametrize('platform_name, archive', [
-    ('Darwin', lazy_fixture('mongodb_archive_macos')),
-    ('Windows', lazy_fixture('mongodb_archive_windows'))
-])
+@mark.parametrize('platform_name, archive', [('Darwin', lazy_fixture('mongodb_archive_macos')),
+                                             ('Windows', lazy_fixture('mongodb_archive_windows'))])
 # yapf: enable # pylint: enable=line-too-long
 def test_unpack(monkeypatch: MonkeyPatch, platform_name: str, archive: IO[bytes]) -> None:
     """Test unpacking mechanism based on archive format."""
