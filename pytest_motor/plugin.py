@@ -14,10 +14,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 from pytest_motor.mongod_binary import MongodBinary
 
-AS_REPLICA_SET = bool(os.environ.get("AS_REPLICA_SET", True))
-
-
-@pytest.fixture(scope='function')
+@pytest.fixture(scope='session')
 def event_loop() -> asyncio.AbstractEventLoop:
     """Create an instance of the default event loop for each test case."""
     loop = asyncio.get_event_loop_policy().get_event_loop()
@@ -25,13 +22,13 @@ def event_loop() -> asyncio.AbstractEventLoop:
     loop.close()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 async def root_directory(pytestconfig: PytestConfig) -> Path:
     """Return the root path of pytest."""
     return pytestconfig.rootpath
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 async def mongod_binary(root_directory: Path) -> Path:
     # pylint: disable=redefined-outer-name
     """Return a path to a mongod binary."""
@@ -42,7 +39,7 @@ async def mongod_binary(root_directory: Path) -> Path:
     return binary.path
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def new_port() -> int:
     """Return an unused port for mongod to run on."""
     port: int = 27017
@@ -52,14 +49,14 @@ def new_port() -> int:
     return port
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def database_path() -> Iterator[str]:
     """Yield a database path for a mongod process to store data."""
     with tempfile.TemporaryDirectory() as tmpdirname:
         yield tmpdirname
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 async def mongod_socket(new_port: int, database_path: Path,
                         mongod_binary: Path) -> AsyncIterator[str]:
     # pylint: disable=redefined-outer-name
@@ -72,26 +69,9 @@ async def mongod_socket(new_port: int, database_path: Path,
         '--logpath', '/dev/null',
         '--dbpath', str(database_path)
     ]
-    arguments.append("--replSet")
-    arguments.append("rs0")
-    # yapf: enable
 
     mongod = await asyncio.create_subprocess_exec(*arguments)
     db_uri = f"localhost:{new_port}"
-
-    if AS_REPLICA_SET:
-        conn = pymongo.MongoClient(port=new_port, directConnection=True)
-
-        conn.admin.command({
-            "replSetInitiate": {
-                "_id": "rs0",
-                "members": [{
-                    "_id": 0,
-                    "host": f"localhost:{new_port}"
-                }],
-            }
-        })
-        conn.admin.command({"replSetGetConfig": 1})
 
     # mongodb binds to localhost by default
     yield db_uri
@@ -102,27 +82,15 @@ async def mongod_socket(new_port: int, database_path: Path,
         pass
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def __motor_client(mongod_socket: str) -> AsyncIterator[AsyncIOMotorClient]:
     # pylint: disable=redefined-outer-name
     """Yield a Motor client."""
-    conn = pymongo.MongoClient(host=mongod_socket, replicaSet="rs0", directConnection=True)
-    conn.admin.command({
-        "setDefaultRWConcern": 1,
-        "defaultWriteConcern": {
-            "w": 1,
-            "wtimeout": 2000
-        },
-        "writeConcern": {
-            "w": 0
-        },
-    })
-
     connection_string = f"mongodb://{mongod_socket}"
 
     motor_client_: AsyncIOMotorClient = AsyncIOMotorClient(connection_string,
                                                            serverSelectionTimeoutMS=3000,
-                                                           retryWrites=False)
+    )
 
     yield motor_client_
 
@@ -144,5 +112,4 @@ async def motor_client(
         if db not in ["config", "admin", "local"]:
             collections = await __motor_client[db].list_collections()
             for collection in collections:
-                print(collection)
                 await __motor_client[db].drop_collection(collection["name"])
