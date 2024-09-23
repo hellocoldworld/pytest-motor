@@ -6,13 +6,14 @@ import tempfile
 from pathlib import Path
 from typing import AsyncIterator, Iterator, List
 
-import pymongo
 import pytest
-import pytest_asyncio
 from _pytest.config import Config as PytestConfig
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from pytest_motor.mongod_binary import MongodBinary
+
+PYTEST_MOTOR_TIMEOUT_MS = int(os.environ.get("PYTEST_MOTOR_TIMEOUT_MS", 30000))
+
 
 @pytest.fixture(scope='session')
 def event_loop() -> asyncio.AbstractEventLoop:
@@ -89,7 +90,7 @@ def __motor_client(mongod_socket: str) -> AsyncIterator[AsyncIOMotorClient]:
     connection_string = f"mongodb://{mongod_socket}"
 
     motor_client_: AsyncIOMotorClient = AsyncIOMotorClient(connection_string,
-                                                           serverSelectionTimeoutMS=3000,
+                                                           serverSelectionTimeoutMS=PYTEST_MOTOR_TIMEOUT_MS,
     )
 
     yield motor_client_
