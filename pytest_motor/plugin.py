@@ -112,5 +112,5 @@ async def motor_client(
     for db in dbs:
         if db not in ["config", "admin", "local"]:
             collections = await __motor_client[db].list_collections()
-            for collection in collections:
+            async for collection in collections:
                 await __motor_client[db].drop_collection(collection["name"])
